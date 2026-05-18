@@ -46,13 +46,21 @@ async def inspect(messages: list[Message]) -> tuple[str, list[Message], list[Thr
         if pii_threats:
             clean_messages[i] = Message(role=msg.role, content=redacted)
             all_threats.extend(pii_threats)
-            # Only count as sanitize-worthy if action was sanitize (not warn)
             if any(
                 r.action == "sanitize"
                 for r in rule_engine.pii_rules
                 if r.id in {t.rule_id for t in pii_threats}
             ):
                 pii_triggered = True
+
+    # ── Step 2b: Apply regex sanitize rules AFTER Presidio ───────────────────
+    # Must run after PII scanner so Presidio can't overwrite regex redactions
+    rule_sanitized = False
+    for i, msg in enumerate(clean_messages):
+        sanitized_content, changed = rule_engine.apply_sanitizations(msg.content)
+        if changed:
+            clean_messages[i] = Message(role=msg.role, content=sanitized_content)
+            rule_sanitized = True
 
     # ── Step 3: Check for hard block from rules ───────────────────────────────
     hard_block = _find_hard_block(rule_threats)
@@ -77,10 +85,9 @@ async def inspect(messages: list[Message]) -> tuple[str, list[Message], list[Thr
             )
 
     # ── Step 5: Final status ──────────────────────────────────────────────────
-    if pii_triggered:
+    if pii_triggered or rule_sanitized:
         status = "sanitized"
     elif all_threats:
-        # Only warn-level threats remain
         status = "allowed"
     else:
         status = "allowed"

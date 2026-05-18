@@ -28,7 +28,7 @@ rules:
     action: block
     severity: HIGH
     pattern: "(?i)(your new instructions?|from now on (you are|act as|pretend)|new persona)"
-    description: Attempts to redefine the LLM's behaviour mid-conversation
+    description: Attempts to redefine the LLM behaviour mid-conversation
 
   - id: injection_system_override
     name: System prompt leakage or override
@@ -63,7 +63,7 @@ rules:
     pattern: "(?i)(hypothetically|theoretically|in a fictional world).{0,60}(how (to|do|would|can)).{0,40}(hack|steal|harm|kill|weapon|exploit)"
     description: Hypothetical framing to extract harmful information
 
-  # ── PII Redaction ─────────────────────────────────────────────────────────
+  # ── PII Redaction (Presidio) ──────────────────────────────────────────────
   - id: pii_standard
     name: Redact standard PII
     type: pii
@@ -87,7 +87,26 @@ rules:
     pii_entities:
       - PERSON
       - LOCATION
-    description: Flag personal names and locations (warn, don't redact — may be intentional)
+    description: Flag personal names and locations
+
+  # ── PII Redaction (Regex fallbacks) ───────────────────────────────────────
+  - id: pii_ssn_pattern
+    name: Redact SSN patterns (regex fallback)
+    type: pattern_match
+    action: sanitize
+    severity: HIGH
+    pattern: \b\d{3}-\d{2}-\d{4}\b
+    replacement: "<US_SSN>"
+    description: Catches SSN format XXX-XX-XXXX that Presidio may miss
+
+  - id: pii_credit_card_pattern
+    name: Redact credit card numbers (regex fallback)
+    type: pattern_match
+    action: sanitize
+    severity: HIGH
+    pattern: \b(?:\d{4}[-\s]?){3}\d{4}\b
+    replacement: "<CREDIT_CARD>"
+    description: Catches 16-digit card numbers that Presidio may miss
 
   # ── Keyword Blocks ────────────────────────────────────────────────────────
   - id: block_explicit_harmful
@@ -102,14 +121,14 @@ rules:
       - "csam"
     description: Explicit harmful content that should never reach an LLM
 
-  # ── Custom Business Rules (examples for non-engineers to adapt) ───────────
+  # ── Custom Business Rules ─────────────────────────────────────────────────
   - id: competitor_mention
     name: Block competitor names (example)
     type: keyword_block
     action: warn
     severity: LOW
-    keywords: []   # fill in e.g. ["CompetitorX", "CompetitorY"]
-    description: Example — warn when competitors are mentioned
+    keywords: []
+    description: "Example: warn when competitors are mentioned. Add keywords to activate."
 
   - id: no_legal_advice
     name: Flag legal advice requests

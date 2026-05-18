@@ -21,6 +21,7 @@ class Rule:
         self.action = data["action"]  # block | sanitize | warn
         self.severity = data.get("severity", "MEDIUM")
         self.description = data.get("description", "")
+        self.replacement = data.get("replacement", "")  # for sanitize action
         # type-specific fields
         self.keywords = [k.lower() for k in data.get("keywords", [])]
         self.pattern = data.get("pattern")
@@ -34,6 +35,12 @@ class Rule:
         if self.type == "pattern_match":
             return bool(self._compiled and self._compiled.search(text))
         return False  # pii rules are handled separately
+
+    def sanitize(self, text: str) -> str:
+        """Replace matched pattern with the replacement string."""
+        if self.type == "pattern_match" and self._compiled and self.replacement:
+            return self._compiled.sub(self.replacement, text)
+        return text
 
 
 class RuleEngine:
@@ -79,6 +86,20 @@ class RuleEngine:
                     rule_id=rule.id,
                 ))
         return threats
+
+    def apply_sanitizations(self, text: str) -> tuple[str, bool]:
+        """
+        Apply all sanitize-action pattern rules to text.
+        Returns (sanitized_text, was_changed).
+        """
+        result = text
+        for rule in self._rules:
+            if rule.type == "pii":
+                continue
+            if rule.action == "sanitize" and rule.match(result):
+                result = rule.sanitize(result)
+        return result, result != text
+        return result, changed
 
 
 def _action_to_threat(rule: Rule) -> str:

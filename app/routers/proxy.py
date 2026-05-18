@@ -59,7 +59,21 @@ async def inspect_prompt(body: InspectRequest) -> InspectResponse:
     return response
 
 
-@router.post("/rules/reload", tags=["Admin"])
+@router.get("/debug/sanitize", tags=["Admin"])
+async def debug_sanitize(text: str):
+    """Debug endpoint to test rule sanitization directly."""
+    from app.services.rule_engine import rule_engine
+    sanitize_rules = [(r.id, r.action, r.replacement, r.match(text)) for r in rule_engine._rules if r.type == "pattern_match"]
+    result, changed = rule_engine.apply_sanitizations(text)
+    return {
+        "input": text,
+        "output": result,
+        "changed": changed,
+        "pattern_rules": [
+            {"id": rid, "action": action, "replacement": repl, "matches": matches}
+            for rid, action, repl, matches in sanitize_rules
+        ]
+    }
 async def reload_rules():
     """Hot-reload YAML rules without restarting the server."""
     from app.services.rule_engine import rule_engine

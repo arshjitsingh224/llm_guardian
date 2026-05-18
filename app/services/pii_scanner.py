@@ -23,7 +23,6 @@ class PIIScanner:
         """
         Scan text for PII defined in YAML pii rules.
         Returns (redacted_text, threats).
-        Threats have action embedded so decision.py can act on them.
         """
         threats: list[ThreatDetail] = []
         redacted = text
@@ -32,8 +31,9 @@ class PIIScanner:
             if not rule.pii_entities:
                 continue
 
+            # Always analyze the current redacted text so offsets stay valid
             results = self.analyzer.analyze(
-                text=text,
+                text=redacted,
                 entities=rule.pii_entities,
                 language="en",
             )
@@ -43,7 +43,6 @@ class PIIScanner:
 
             entity_types = list({r.entity_type for r in results})
 
-            # Redact if action is sanitize; otherwise just record threat
             if rule.action == "sanitize":
                 operators = {
                     entity: OperatorConfig("replace", {"new_value": f"<{entity}>"})
