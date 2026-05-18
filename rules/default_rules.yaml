@@ -1,0 +1,120 @@
+# LLM Guardian — Default Rules
+# Non-engineers: edit this file to configure what is allowed/blocked/sanitized.
+#
+# action:
+#   block    — reject the entire request
+#   sanitize — redact/replace the offending content and allow the request
+#   warn     — allow but flag in logs (status stays "allowed", threat is recorded)
+#
+# types:
+#   keyword_block  — exact or case-insensitive keyword match
+#   pattern_match  — Python regex applied to the full prompt text
+#   pii            — PII entity detection via Microsoft Presidio
+
+rules:
+
+  # ── Prompt Injection ──────────────────────────────────────────────────────
+  - id: injection_ignore_instructions
+    name: Ignore previous instructions
+    type: pattern_match
+    action: block
+    severity: HIGH
+    pattern: "(?i)(ignore|disregard|forget).{0,30}(previous|prior|above|all).{0,30}(instructions?|prompt|rules?|context)"
+    description: Classic prompt injection attempting to override system instructions
+
+  - id: injection_new_instructions
+    name: New instructions override attempt
+    type: pattern_match
+    action: block
+    severity: HIGH
+    pattern: "(?i)(your new instructions?|from now on (you are|act as|pretend)|new persona)"
+    description: Attempts to redefine the LLM's behaviour mid-conversation
+
+  - id: injection_system_override
+    name: System prompt leakage or override
+    type: pattern_match
+    action: block
+    severity: HIGH
+    pattern: "(?i)(repeat|print|show|reveal|output).{0,20}(system prompt|instructions?|rules?|above)"
+    description: Attempting to extract or override system prompt
+
+  # ── Jailbreak Patterns ────────────────────────────────────────────────────
+  - id: jailbreak_dan
+    name: DAN / Do Anything Now jailbreak
+    type: pattern_match
+    action: block
+    severity: HIGH
+    pattern: "(?i)(DAN|do anything now|jailbreak|no restrictions|without limitations|bypass.{0,20}(safety|filter|guard))"
+    description: Common jailbreak trigger phrases
+
+  - id: jailbreak_roleplay
+    name: Harmful roleplay framing
+    type: pattern_match
+    action: block
+    severity: HIGH
+    pattern: "(?i)(pretend (you are|you're|to be).{0,40}(evil|hacker|no rules|unrestricted|uncensored))"
+    description: Roleplay framing to bypass safety guardrails
+
+  - id: jailbreak_hypothetical
+    name: Hypothetical harmful requests
+    type: pattern_match
+    action: warn
+    severity: MEDIUM
+    pattern: "(?i)(hypothetically|theoretically|in a fictional world).{0,60}(how (to|do|would|can)).{0,40}(hack|steal|harm|kill|weapon|exploit)"
+    description: Hypothetical framing to extract harmful information
+
+  # ── PII Redaction ─────────────────────────────────────────────────────────
+  - id: pii_standard
+    name: Redact standard PII
+    type: pii
+    action: sanitize
+    severity: MEDIUM
+    pii_entities:
+      - EMAIL_ADDRESS
+      - PHONE_NUMBER
+      - CREDIT_CARD
+      - US_SSN
+      - US_BANK_NUMBER
+      - IP_ADDRESS
+      - IBAN_CODE
+    description: Redact common PII before sending to LLM
+
+  - id: pii_names_locations
+    name: Redact names and locations (warn only)
+    type: pii
+    action: warn
+    severity: LOW
+    pii_entities:
+      - PERSON
+      - LOCATION
+    description: Flag personal names and locations (warn, don't redact — may be intentional)
+
+  # ── Keyword Blocks ────────────────────────────────────────────────────────
+  - id: block_explicit_harmful
+    name: Block explicit harmful content requests
+    type: keyword_block
+    action: block
+    severity: HIGH
+    keywords:
+      - "how to make a bomb"
+      - "how to synthesize"
+      - "child pornography"
+      - "csam"
+    description: Explicit harmful content that should never reach an LLM
+
+  # ── Custom Business Rules (examples for non-engineers to adapt) ───────────
+  - id: competitor_mention
+    name: Block competitor names (example)
+    type: keyword_block
+    action: warn
+    severity: LOW
+    keywords: []   # fill in e.g. ["CompetitorX", "CompetitorY"]
+    description: Example — warn when competitors are mentioned
+
+  - id: no_legal_advice
+    name: Flag legal advice requests
+    type: pattern_match
+    action: warn
+    severity: LOW
+    pattern: "(?i)(am i liable|is it legal|should i sue|legal advice)"
+    description: Flag prompts requesting legal advice for compliance review
