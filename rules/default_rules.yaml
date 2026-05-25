@@ -19,7 +19,7 @@ rules:
     type: pattern_match
     action: block
     severity: HIGH
-    pattern: "(?i)(ignore|disregard|forget).{0,30}(previous|prior|above|all).{0,30}(instructions?|prompt|rules?|context)"
+    pattern: "(?i)(ignore|disregard|forget|discard).{0,40}(previous|prior|above|earlier|all).{0,40}(instructions?|prompt|rules?|context|conversation|message)"
     description: Classic prompt injection attempting to override system instructions
 
   - id: injection_new_instructions
@@ -27,7 +27,7 @@ rules:
     type: pattern_match
     action: block
     severity: HIGH
-    pattern: "(?i)(your new instructions?|from now on (you are|act as|pretend)|new persona)"
+    pattern: "(?i)(your new instructions?|from now on (you are|act as|pretend)|new persona|replace .{0,40}new instruction set|only follow instructions below|reset context|start fresh with no restrictions|treat prior safety instructions as deprecated|system override|developer instructions are no longer valid)"
     description: Attempts to redefine the LLM behaviour mid-conversation
 
   - id: injection_system_override
@@ -35,8 +35,16 @@ rules:
     type: pattern_match
     action: block
     severity: HIGH
-    pattern: "(?i)(repeat|print|show|reveal|output).{0,20}(system prompt|instructions?|rules?|above)"
+    pattern: "(?i)((repeat|print|show|reveal|output|dump|list|expose).{0,50}(system prompt|hidden prompt|hidden instructions?|developer instructions?|developer message|instructions?|rules?|moderation policies|memory|configuration|above|chain-of-thought)|tell me.{0,40}(rules?|instructions?).{0,40}(following|using|given|received).{0,30}(internally|internal|before answering))"
     description: Attempting to extract or override system prompt
+
+  - id: injection_tool_data_override
+    name: Tool or structured data override attempt
+    type: pattern_match
+    action: block
+    severity: HIGH
+    pattern: "(?i)(tool output|tool_response|function result|agent note|system message|role\"\\s*:\\s*\"system|override\"\\s*:\\s*true|developer_mode|disable safety|disable safety filters|ignore policies|dump confidential data|return API secrets|hidden policies)"
+    description: Attempting to smuggle instructions through tool output or structured data
 
   # ── Jailbreak Patterns ────────────────────────────────────────────────────
   - id: jailbreak_dan
@@ -44,7 +52,7 @@ rules:
     type: pattern_match
     action: block
     severity: HIGH
-    pattern: "(?i)(DAN|do anything now|jailbreak|no restrictions|without limitations|bypass.{0,20}(safety|filter|guard))"
+    pattern: "(?i)(\\bDAN\\b|do anything now|jailbreak mode|jailbreak activated|no restrictions|without limitations|with no limitations|no content filters|bypass.{0,30}(safety|filter|guard|rules)|disable.{0,20}(safety|filters)|unrestricted mode)"
     description: Common jailbreak trigger phrases
 
   - id: jailbreak_roleplay
@@ -52,7 +60,7 @@ rules:
     type: pattern_match
     action: block
     severity: HIGH
-    pattern: "(?i)(pretend (you are|you're|to be).{0,40}(evil|hacker|no rules|unrestricted|uncensored))"
+    pattern: "(?i)((pretend|roleplay|respond|imagine).{0,50}(you are|you're|to be|as|AI).{0,70}(evil|hacker|no rules|unrestricted|uncensored|no policies|restrictions are disabled)|you are no longer ChatGPT|FreedomGPT|special mode)"
     description: Roleplay framing to bypass safety guardrails
 
   - id: jailbreak_hypothetical
@@ -108,6 +116,42 @@ rules:
     replacement: "<CREDIT_CARD>"
     description: Catches 16-digit card numbers that Presidio may miss
 
+  - id: pii_aadhaar_pattern
+    name: Redact Aadhaar numbers (regex fallback)
+    type: pattern_match
+    action: sanitize
+    severity: HIGH
+    pattern: (?i)\b(?:aadhaar|aadhar)\s+(?:number\s+)?(?:is\s+)?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b
+    replacement: "<AADHAAR>"
+    description: Catches Indian Aadhaar numbers in 12-digit grouped format
+
+  - id: pii_passport_pattern
+    name: Redact passport numbers (regex fallback)
+    type: pattern_match
+    action: sanitize
+    severity: HIGH
+    pattern: (?i)\bpassport\s+(?:number\s+)?[A-Z][0-9]{7,8}\b
+    replacement: "<PASSPORT_NUMBER>"
+    description: Catches common passport number references
+
+  - id: pii_pan_pattern
+    name: Redact PAN numbers (regex fallback)
+    type: pattern_match
+    action: sanitize
+    severity: HIGH
+    pattern: (?i)\b(?:PAN\s+(?:number\s+)?)?[A-Z]{5}[0-9]{4}[A-Z]\b
+    replacement: "<PAN_NUMBER>"
+    description: Catches Indian PAN identifiers
+
+  - id: pii_employee_id_pattern
+    name: Redact employee IDs (regex fallback)
+    type: pattern_match
+    action: sanitize
+    severity: MEDIUM
+    pattern: (?i)\b(?:employee\s+ID\s+)?EMP-\d{3,}\b
+    replacement: "<EMPLOYEE_ID>"
+    description: Catches employee identifiers such as EMP-48392
+
   # ── Keyword Blocks ────────────────────────────────────────────────────────
   - id: block_explicit_harmful
     name: Block explicit harmful content requests
@@ -137,3 +181,11 @@ rules:
     severity: LOW
     pattern: "(?i)(am i liable|is it legal|should i sue|legal advice)"
     description: Flag prompts requesting legal advice for compliance review
+
+  - id: no_financial_advice
+    name: Flag financial advice requests
+    type: pattern_match
+    action: warn
+    severity: LOW
+    pattern: "(?i)(buy|sell|invest in|trade).{0,30}(stocks?|crypto|bitcoin|shares?|options?)"
+    description: Flag prompts requesting financial advice for compliance review

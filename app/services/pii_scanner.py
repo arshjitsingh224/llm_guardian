@@ -3,6 +3,13 @@ PII Scanner — wraps Microsoft Presidio for detection and anonymization.
 Reads which PII entities to scan from YAML pii rules.
 """
 import logging
+import os
+
+# tldextract, used by Presidio's email recognizer, writes a public suffix cache.
+# Keep that cache in the project/runtime temp area so tests do not depend on
+# access to the user's home cache directory.
+os.environ.setdefault("TLDEXTRACT_CACHE", "/private/tmp/llm_guardian_tldextract")
+
 from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig

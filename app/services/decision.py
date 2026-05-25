@@ -12,7 +12,7 @@ Flow:
 import logging
 from copy import deepcopy
 from app.models.schemas import Message, ThreatDetail
-from app.services.rule_engine import rule_engine
+from app.services.rule_engine import is_benign_security_context, rule_engine
 from app.services.pii_scanner import pii_scanner
 from app.services.llm_judge import llm_judge
 
@@ -73,7 +73,7 @@ async def inspect(messages: list[Message]) -> tuple[str, list[Message], list[Thr
         )
 
     # ── Step 4: LLM judge — only runs if rules didn't hard-block ─────────────
-    judge_threat = await llm_judge.judge(combined_text)
+    judge_threat = None if is_benign_security_context(combined_text) else await llm_judge.judge(combined_text)
     if judge_threat:
         all_threats.append(judge_threat)
         if judge_threat.type in {"PROMPT_INJECTION", "JAILBREAK"}:
